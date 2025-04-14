@@ -1,0 +1,40 @@
+# Semantic Class Assignment Rules
+#
+# Populated by Data Architect (DA) - 2025-04-14
+# Used by scripts/apply_semantic_corrections.py when
+# config.semantic_correction.class_assignment_strategy is "most_specific_known".
+#
+# This list defines the preferred order for assigning a single representative class
+# from an entity's P31 'instance of' statements. Lower index = higher preference.
+
+# Format 1: Simple Preference List (Currently implemented strategy)
+preference_order:
+  # Specific Geographic Features / Administrative Levels (Most Preferred First)
+  - Q515         # City
+  - Q3957        # Town
+  - Q7930989     # Capital city
+  - Q15284       # Municipality
+  - Q532         # Village
+  - Q7275        # County (US sense, needs context adjustment if needed)
+  - Q486972      # Human settlement (general)
+  - Q10864048    # Administrative division (e.g., State, Province)
+  - Q6256        # Country
+  - Q3624078     # Sovereign state
+
+  # Intermediate / Context-Specific Types (Less Preferred)
+  - Q707918      # Borough (context dependent)
+  - Q123705      # Neighbourhood
+  - Q34876       # Administrative region (can be broad)
+  - Q15634554    # Census-designated place (USA)
+
+  # Broader Categories (Least Preferred)
+  - Q17379834    # Administrative territorial entity
+  - Q27096213    # Geographic entity
+
+# --- End Examples ---
+
+# Format 2: Hierarchy (Not currently implemented by apply_semantic_corrections.py)
+# hierarchy:
+#   Q515: # City
+#     parent: Q486972 # Human settlement
+#   # ... etc ...

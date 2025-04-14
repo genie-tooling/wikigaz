@@ -1,0 +1,224 @@
+# wiki2gaz_modern Configuration File (YAML Format)
+#
+# Paths should be relative to project root or absolute.
+# Use environment variables (e.g., ${MONGO_URI}) for sensitive data.
+
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "json" # or "text"
+  log_file_path: "logs/pipeline.log" # Relative path (will be absolutized by config loader)
+  max_bytes: 10485760 # 10MB
+  backup_count: 5
+
+paths:
+  # Directory for downloaded raw dumps (Wikidata JSON, Wiki XML, Wiki SQL)
+  data_dir: "data/" # Relative path
+  # Directory for intermediate processing files (e.g., aggregated stats, mapping files)
+  processing_dir: "processing_output/" # Relative path
+  # Directory for final outputs (if any, besides MongoDB)
+  output_dir: "output/" # Relative path
+  # Path to the wikimapper index DB (if wikimapper strategy is chosen)
+  wikimapper_db: "data/index_enwiki-latest.db" # Relative path
+
+mongodb:
+  # Use environment variable: ${MONGO_URI}
+  uri: ${MONGO_URI:-mongodb://localhost:27017/} # Provide a fallback default
+  database: "wiki2gaz_db_modern_v1"
+  collection_entities: "wikidata_entities_v1"
+  # Optional: Separate collection for sitelink mapping if strategy B chosen
+  # collection_sitelinks: "wikidata_sitelinks_mapping"
+  # Optional: Separate collection for embeddings if stored in Mongo
+  # collection_embeddings: "wikidata_entity_embeddings_v1"
+  batch_size: 1000 # Default batch size for MongoDB operations
+
+wikidata_ingestion:
+  # Path relative to data_dir or absolute. Use ${WIKIDATA_DUMP_FILENAME} if overriding via env.
+  dump_filename: ${WIKIDATA_DUMP_FILENAME:-latest-all.json.bz2} # Default if env var not set
+  batch_size: ${config.mongodb.batch_size} # Reference global batch size
+  # Filter criteria
+  require_enwiki_sitelink: true
+  require_coordinates: true
+  # List of core Wikidata Property IDs (PIDs) to extract (DA to finalize)
+  # NOTE: Some PIDs (like P131, P17, P1082) require special handling for hierarchy/qualifiers.
+  properties_to_extract:
+    # == Core & General Properties ==
+    - P31    # instance of -> instance_of (list of QIDs) - [Existing] Simple Extractor
+    - P279   # subclass of -> subclass_of (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P361   # part of -> part_of (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1448  # official name -> official_name (string/monolingual) - [Needs Schema/Code] Simple Extractor (String/Lang)
+    - P18    # image -> image_filename (string/Commons) - [Needs Schema/Code] Simple Extractor (String/URL processing)
+    - P1549  # demonym -> demonym (string/monolingual) - [Needs Schema/Code] Simple Extractor (String/Lang)
+    - P1476  # title -> title (string/monolingual) - [Needs Schema/Code] Simple Extractor (String/Lang, often for works)
+    - P1705  # native label -> native_label (string/monolingual) - [Needs Schema/Code] Simple Extractor (String/Lang)
+    - P910   # topic's main category -> main_category (QID) - [Needs Schema/Code] Simple Extractor (QID)
+
+    # == Geographic / Place Properties ==
+    - P625   # coordinate location -> coordinates (GeoJSON Point) - [Existing] Special Handling
+    - P131   # located in administrative entity -> admin_hierarchy (list of objects) - [Existing] Special Handling
+    - P17    # country -> country_membership (list of objects w/ dates) - [Existing] Complex Handling
+    - P1082  # population -> population (list of objects w/ dates) - [Existing] Complex Handling
+    - P2046  # area -> area_sqkm (double) - [Existing] Complex Handling (units)
+    - P36    # capital -> capital (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1376  # capital of -> capital_of (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P37    # official language -> official_language (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P38    # currency -> currency (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P150   # contains administrative territorial entity -> contains_admin_entity (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P2044  # elevation above sea level -> elevation_m (double) - [Needs Schema/Code] Quantity Extractor (needs unit conversion)
+    - P2067  # mass -> mass_kg (double) - [Needs Schema/Code] Quantity Extractor (unit conversion)
+    - P706   # located in/on physical feature -> located_on_feature (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P47    # shares border with -> shares_border_with (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P281   # postal code -> postal_code (string) - [Needs Schema/Code] Simple Extractor (String)
+    - P30    # continent -> continent (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P159   # headquarters location -> headquarters_location (QID) - [Needs Schema/Code] Simple Extractor (Org/Place)
+    - P1619  # date of official opening -> dates.opened_year (int) - [Needs Schema/Code] Date Handling (like P571)
+    - P571   # inception -> dates.inception_year (int) - [Existing] Date Handling
+    - P576   # dissolved, abolished -> dates.dissolved_year (int) - [Existing] Date Handling
+
+    # == Person Properties ==
+    - P21    # sex or gender -> gender (QID) - [Needs Schema/Code] Simple Extractor (QID, best rank?)
+    - P106   # occupation -> occupation (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P569   # date of birth -> dates.birth_year (int) - [Needs Schema/Code] Date Handling
+    - P19    # place of birth -> birth_place (QID) - [Needs Schema/Code] Simple Extractor (QID, best rank?)
+    - P570   # date of death -> dates.death_year (int) - [Needs Schema/Code] Date Handling
+    - P20    # place of death -> death_place (QID) - [Needs Schema/Code] Simple Extractor (QID, best rank?)
+    - P27    # country of citizenship -> citizenship (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P69    # educated at -> educated_at (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P101   # field of work -> field_of_work (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P102   # member of political party -> political_party (list of QIDs w/ dates?) - [Needs Schema/Code] Potential Complex (Qualifiers: P580/P582)
+    - P108   # employer -> employer (list of QIDs w/ dates?) - [Needs Schema/Code] Potential Complex (Qualifiers: P580/P582)
+    - P140   # religion or worldview -> religion (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P735   # given name -> given_name (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P734   # family name -> family_name (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P22    # father -> father (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P25    # mother -> mother (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P3373  # sibling -> sibling (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P26    # spouse -> spouse (list of QIDs w/ dates?) - [Needs Schema/Code] Potential Complex (Qualifiers: P580/P582)
+    - P40    # child -> child (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P103   # native language -> native_language (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P166   # award received -> awards (list of QIDs w/ date?) - [Needs Schema/Code] Potential Complex (Qualifier: P585 Point in Time)
+    - P39    # position held -> positions_held (list of objects) - [Needs Schema/Code] **Very Complex** (Requires P580/P582/P768/P1365 etc. qualifiers)
+
+    # == Organization Properties ==
+    # - P159 # headquarters location (see Places) - [Needs Schema/Code] Simple Extractor
+    # - P571 # inception (see Places) - [Existing] Date Handling
+    # - P576 # dissolved, abolished (see Places) - [Existing] Date Handling
+    - P112   # founded by -> founded_by (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P452   # industry -> industry (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P856   # official website -> official_website (string/URL) - [Needs Schema/Code] Simple Extractor (String/URL)
+    - P179   # part of the series -> part_of_series (QID) - [Needs Schema/Code] Simple Extractor (QID, e.g., for companies in a group)
+    - P127   # owned by -> owned_by (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P749   # parent organization -> parent_organization (list of QIDs w/ dates?) - [Needs Schema/Code] Potential Complex (Qualifiers: P580/P582)
+    - P355   # subsidiary -> subsidiaries (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1366  # replaced by -> replaced_by (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1365  # replaces -> replaces (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1454  # legal form -> legal_form (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P1128  # employees -> employee_count (Quantity w/ date?) - [Needs Schema/Code] Quantity/Complex Handling (P585)
+    - P2139  # total revenue -> total_revenue (Quantity w/ date?) - [Needs Schema/Code] Quantity/Complex Handling (P585, currency unit?)
+    - P414   # stock exchange -> stock_exchange (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P946   # ISIN - > isin (string) - [Needs Schema/Code] Simple Extractor (String)
+    # - P414 # stock exchange ticker symbol -> stock_ticker (string) - [Needs Schema/Code] Simple Extractor (String) -> Duplicate above, consolidating
+
+    # == Creative Work Properties (Books, Films, Music, etc.) ==
+    - P50    # author -> author (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P57    # director -> director (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P58    # screenwriter -> screenwriter (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P86    # composer -> composer (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P175   # performer -> performer (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P161   # cast member -> cast_member (list of QIDs w/ character role?) - [Needs Schema/Code] Potential Complex (Qualifier: P453 character role)
+    - P577   # publication date -> dates.publication_year (int) - [Needs Schema/Code] Date Handling (like P571)
+    - P136   # genre -> genre (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P495   # country of origin -> country_of_origin (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P406   # language of work or name -> language_of_work (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1473  # character role -> character_role (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P674   # characters -> characters (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P364   # original language of work -> original_language (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P123   # publisher -> publisher (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P921   # main subject -> main_subject (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P162   # producer -> producer (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1433  # published in -> published_in (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P272   # production company -> production_company (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P400   # platform -> platform (list of QIDs) - [Needs Schema/Code] Simple Extractor (e.g., for games, software)
+    - P2047  # duration -> duration_seconds (double/int?) - [Needs Schema/Code] Quantity Extractor (unit conversion needed)
+    - P1113  # number of episodes -> episode_count (int) - [Needs Schema/Code] Simple Extractor (Quantity amount)
+    - P1411  # nominated for -> nominated_for (list of QIDs w/ date?) - [Needs Schema/Code] Potential Complex (P585?)
+
+    # == Event Properties ==
+    - P580   # start time -> dates.start_year (int) - [Needs Schema/Code] Date Handling (like P571)
+    - P582   # end time -> dates.end_year (int) - [Needs Schema/Code] Date Handling (like P576)
+    - P276   # location -> event_location (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P177   # crosses -> crosses (list of QIDs) - [Needs Schema/Code] Simple Extractor (e.g., bridge crosses river)
+    - P710   # participant -> participant (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P1346  # winner -> winner (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P607   # conflict -> conflict (QID) - [Needs Schema/Code] Simple Extractor (QID, e.g., battle part of war)
+
+    # == Science / Taxonomy Properties ==
+    - P105   # taxon rank -> taxon_rank (QID) - [Needs Schema/Code] Simple Extractor (QID, best rank?)
+    - P171   # parent taxon -> parent_taxon (QID) - [Needs Schema/Code] Simple Extractor (QID, best rank?)
+    - P225   # taxon name -> taxon_name (string) - [Needs Schema/Code] Simple Extractor (String)
+    - P1420  # taxon synonym -> taxon_synonym (string) - [Needs Schema/Code] Simple Extractor (String)
+    - P688   # encodes -> encodes (list of QIDs) - [Needs Schema/Code] Simple Extractor (e.g., gene encodes protein)
+    - P682   # biological process -> biological_process (list of QIDs) - [Needs Schema/Code] Simple Extractor
+    - P2868  # subject has role -> subject_has_role (QID) - [Needs Schema/Code] Simple Extractor (QID)
+    - P2860  # cites -> cites (list of QIDs) - [Needs Schema/Code] Simple Extractor (e.g., paper cites paper)
+
+    # == External Identifiers (Examples - Add many more if needed) ==
+    # Note: Storing these often involves just extracting the string ID.
+    # Consider a dedicated sub-object 'external_ids: {PXYZ: "value", ...}' in schema.
+    - P214   # VIAF ID -> external_ids.viaf (string) - [Needs Schema/Code] Simple Extractor
+    - P227   # GND ID -> external_ids.gnd (string) - [Needs Schema/Code] Simple Extractor
+    - P244   # LCAuth ID -> external_ids.lcnaf (string) - [Needs Schema/Code] Simple Extractor
+    - P345   # IMDb ID -> external_ids.imdb (string) - [Needs Schema/Code] Simple Extractor
+    - P646   # Freebase ID -> external_ids.freebase (string) - [Needs Schema/Code] Simple Extractor
+    - P268   # BnF ID -> external_ids.bnf (string) - [Needs Schema/Code] Simple Extractor
+    - P213   # ISNI -> external_ids.isni (string) - [Needs Schema/Code] Simple Extractor
+    # ... add more as needed: MusicBrainz IDs, Twitter username, ORCID, etc.
+
+  # Ontology flaw mitigation runs as separate step (see pipeline_config.json)
+  # This setting determines if fix_ontology_mongo.py runs
+  apply_ontology_fix_on_ingest: false # Kept false, run as separate step
+
+wikipedia_processing: # Conditional section
+  enabled: true # Set to false if not enriching with Wiki data
+  # Path relative to data_dir or absolute. Use ${WIKIPEDIA_DUMP_FILENAME} if overriding via env.
+  dump_filename: ${WIKIPEDIA_DUMP_FILENAME:-enwiki-latest-pages-articles-multistream.xml.bz2} # Default if env var not set
+  # Output format/location for aggregated stats (DA/PA to decide)
+  # Recommended: sqlite for efficient lookup, or json (jsonl) if intermediate step needed
+  stats_output_format: "sqlite" # or "json" or "mongo_collection"
+  stats_output_location: "${config.paths.processing_dir}/wiki_stats.db" # Path for SQLite DB
+
+enrichment: # Conditional section
+  enabled: true # Set to false if not enriching with Wiki data
+  wiki_relevance_field: "wiki_inlink_count" # Field name in Mongo doc
+  wiki_mentions_field: "wiki_top_mentions"   # Field name in Mongo doc
+  max_mentions_to_store: 10 # How many top mentions to store
+
+semantic_correction:
+  class_assignment_strategy: "most_specific_known" # Or 'all_p31', 'global_freq', etc.
+  class_assignment_rules_file: "config/class_mapping_rules.yaml" # Path relative to project root
+  probability_calculation_enabled: false # P(E|M) calculation disabled
+  alias_frequency_handling: "separate" # Handled by schema design
+
+ontology_fix: # Configuration for fix_ontology_mongo.py
+  # Example QIDs - DA should review and finalize
+  major_admin_types: # Types considered major entities (e.g., city, country)
+    - Q515      # City
+    - Q15284    # Municipality
+    - Q6256     # Country
+    - Q3624078  # Sovereign state
+    - Q10864048 # Administrative division (e.g., state, province)
+  sub_part_types: # Intermediate types to potentially skip
+    - Q707918   # Borough
+    - Q123705   # Neighbourhood
+    - Q34876    # Administrative region (sometimes intermediate)
+    - Q15634554 # Census-designated place (USA)
+
+embeddings: # Conditional section
+  enabled: true # Disabled by default
+  model_name: "all-MiniLM-L6-v2" # Example model from sentence-transformers
+  text_fields_to_embed: ["english_label", "aliases.en"] # List of fields from Mongo doc
+  storage_method: "mongo_field" # 'mongo_field', 'mongo_collection', 'vector_db'
+  embedding_field_name: "embedding_vector" # If mongo_field
+  batch_size: 128
+
+wikipedia_processing:
+  enabled: true

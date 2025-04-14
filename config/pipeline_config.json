@@ -1,0 +1,83 @@
+{
+  "pipeline_name": "wiki2gaz_modernization_v1",
+  "description": "Ingest Wikidata, optionally enrich with Wikipedia, apply corrections.",
+  "global_config_file": "config/config.yaml",
+  "steps": [
+    {
+      "name": "Setup Database",
+      "script": "scripts/setup_mongodb.py",
+      "enabled": true,
+      "parameters": {
+        "schema_file": "config/mongo_schema_v1.json"
+      }
+    },
+    {
+      "name": "Ingest Wikidata",
+      "script": "scripts/ingest_wikidata_mongo.py",
+      "enabled": true,
+      "depends_on": ["Setup Database"],
+      "parameters": {
+        "batch_size": "${config.wikidata_ingestion.batch_size}"
+      }
+    },
+    {
+      "name": "Build Wikimapper Index",
+      "script": "scripts/build_wikimapper_index.sh",
+      "enabled": "${config.wikipedia_processing.enabled}",
+      "depends_on": [],
+      "run_if_missing": "${config.paths.wikimapper_db}"
+    },
+    {
+      "name": "Process Wikipedia Stats",
+      "script": "scripts/process_wiki_stats.py",
+      "enabled": "${config.wikipedia_processing.enabled}",
+      "depends_on": ["Build Wikimapper Index"],
+       "parameters": {
+         "output_format": "${config.wikipedia_processing.stats_output_format}",
+         "output_location": "${config.wikipedia_processing.stats_output_location}"
+       }
+    },
+    {
+      "name": "Enrich MongoDB with Wiki",
+      "script": "scripts/enrich_mongo_with_wiki.py",
+      "enabled": "${config.enrichment.enabled}",
+      "depends_on": ["Ingest Wikidata", "Process Wikipedia Stats"],
+       "parameters": {
+         "stats_format": "${config.wikipedia_processing.stats_output_format}",
+         "stats_location": "${config.wikipedia_processing.stats_output_location}"
+       }
+    },
+    {
+      "name": "Apply Semantic Corrections",
+      "script": "scripts/apply_semantic_corrections.py",
+      "enabled": true, # Enabled by default, check config flags inside script
+      "depends_on": ["Ingest Wikidata"],
+       "parameters": {
+         "class_strategy": "${config.semantic_correction.class_assignment_strategy}"
+         # Rules file path is read from global config inside the script
+       }
+    },
+    {
+      "name": "Fix Ontology Issues",
+      "script": "scripts/fix_ontology_mongo.py",
+      "enabled": "${config.wikidata_ingestion.apply_ontology_fix_on_ingest == false}", # Only run if not done during ingest
+      "depends_on": ["Apply Semantic Corrections"] # Ensure corrections applied first if both enabled
+    },
+    {
+      "name": "Generate Embeddings",
+      "script": "scripts/generate_embeddings.py",
+      "enabled": "${config.embeddings.enabled}",
+      "depends_on": ["Fix Ontology Issues", "Enrich MongoDB with Wiki"], # Depends on final clean data state
+      "parameters": {
+          "storage_method": "${config.embeddings.storage_method}"
+          # Other params like model name read from global config inside script
+      }
+    },
+    {
+      "name": "Run Integration Tests",
+      "command": ["poetry", "run", "pytest", "tests/integration"], # Use list format for command
+      "enabled": true, # Usually enabled in dev/CI
+      "depends_on": ["Generate Embeddings"] # Test final state after all processing
+    }
+  ]
+}

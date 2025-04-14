@@ -1,0 +1,154 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "title": "Wikidata Entity Schema V1",
+    "required": [
+      "_id",
+      "wikidata_id",
+      "coordinates",
+      "instance_of",
+      "last_updated"
+    ],
+    "properties": {
+      "_id": {
+        "bsonType": "string",
+        "description": "Wikidata QID (used as primary key)"
+      },
+      "wikidata_id": {
+        "bsonType": "string",
+        "description": "Wikidata QID (redundant, for query ease)"
+      },
+      "english_label": {
+        "bsonType": "string",
+        "description": "Primary English label (labels.en.value)"
+      },
+      "english_description": {
+        "bsonType": "string",
+        "description": "English description (descriptions.en.value)"
+      },
+      "aliases": {
+         "bsonType": "object",
+         "description": "Lang code -> List of unique, normalized aliases for that language group (e.g., 'en' includes 'en', 'en-gb', 'en-ca')",
+         "patternProperties": {
+           "^[a-z]{2,3}$": {
+              "bsonType": "array",
+              "items": { "bsonType": "string" },
+              "uniqueItems": true
+            }
+         },
+         "additionalProperties": false
+      },
+      "instance_of": {
+        "bsonType": "array",
+        "description": "List of Wikidata QIDs for P31 statements",
+        "items": { "bsonType": "string" }
+      },
+      "corrected_class": {
+        "bsonType": ["string", "null"],
+        "description": "Most specific/relevant class QID after semantic correction (null if not determined)"
+      },
+      "coordinates": {
+        "bsonType": "object",
+        "required": ["type", "coordinates"],
+        "description": "GeoJSON Point representation of P625",
+        "properties": {
+          "type": {
+            "enum": ["Point"],
+            "description": "Must be 'Point'"
+          },
+          "coordinates": {
+            "bsonType": "array",
+            "description": "[Longitude, Latitude]",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+                { "bsonType": "double", "description": "Longitude" },
+                { "bsonType": "double", "description": "Latitude" }
+            ]
+          }
+        }
+      },
+      "country_membership": {
+          "bsonType": "array",
+          "description": "Historical country (P17) memberships with dates (qualifiers P580/P582)",
+          "items": {
+              "bsonType": "object",
+              "required": ["country_qid"],
+              "properties": {
+                  "country_qid": {"bsonType": "string"},
+                  "start_year": {"bsonType": ["int", "null"], "description":"Year extracted from P580 qualifier"},
+                  "end_year": {"bsonType": ["int", "null"], "description":"Year extracted from P582 qualifier"}
+              }
+          }
+      },
+      "admin_hierarchy": {
+          "bsonType": "array",
+          "description": "Ordered list of administrative entities (from P131 traversal), from most specific (level 0) upwards. Includes QID, level, and English label.",
+          "items": {
+              "bsonType": "object",
+              "required": ["qid", "level", "label"],
+              "properties": {
+                  "qid": { "bsonType": "string", "description": "Wikidata QID of the administrative entity" },
+                  "level": { "bsonType": "int", "description": "Hierarchy level (0 = most specific)" },
+                  "label": { "bsonType": "string", "description": "English label of the administrative entity (at time of processing)" }
+              }
+          }
+      },
+      "population": {
+           "bsonType": "array",
+           "description": "Population figures (P1082) with point-in-time qualifier (P585)",
+           "items": {
+               "bsonType": "object",
+               "required": ["value"], # Making point_in_time optional at schema level
+               "properties": {
+                  "value": { "bsonType": "long" },
+                  "point_in_time": { "bsonType": ["date", "string", "null"], "description": "ISO date or year string if date parsing fails/missing" }
+               }
+           }
+      },
+      "area_sqkm": {
+          "bsonType": ["double", "null"],
+          "description": "Area (P2046) value converted to square kilometers"
+      },
+      "dates": {
+         "bsonType": "object",
+         "properties": {
+            "inception_year": {"bsonType": ["int", "null"]},
+            "dissolved_year": {"bsonType": ["int", "null"]}
+         }
+      },
+      "wiki_links": {
+          "bsonType": "object",
+          "description": "Data derived from Wikipedia processing (conditional)",
+          "properties": {
+              "normalized_enwiki_title": {"bsonType": "string", "description": "Canonical normalized title of the enwiki sitelink page"},
+              "inlink_count": {"bsonType": ["int", "null"], "description": "Total incoming links count from Wikipedia"},
+              "top_mentions": {
+                  "bsonType": "array",
+                  "description": "List of top mention texts used to link to this entity's Wikipedia page(s)",
+                  "items": {
+                      "bsonType": "object",
+                      "required": ["mention", "count"],
+                      "properties": {
+                          "mention": {"bsonType": "string"},
+                          "count": {"bsonType": "int"}
+                      }
+                  }
+              }
+          }
+      },
+      "ontology_flag_resolved": {
+          "bsonType": "bool",
+          "description": "Flag indicating if this entity was processed by the specific 'ontology flaw' correction logic defined for this pipeline."
+      },
+      "embedding_vector": {
+          "bsonType": ["array", "binData", "null"], # Allow list of floats or binary
+          "description": "Stored embedding vector (if storage_method is 'mongo_field')"
+      },
+      "last_updated": {
+        "bsonType": "date",
+        "description": "Timestamp of when this document was last processed by the pipeline"
+      }
+    }
+  }
+}
