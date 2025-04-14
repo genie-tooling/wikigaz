@@ -5,8 +5,6 @@
     "required": [
       "_id",
       "wikidata_id",
-      "coordinates",
-      "instance_of",
       "last_updated"
     ],
     "properties": {
@@ -19,12 +17,12 @@
         "description": "Wikidata QID (redundant, for query ease)"
       },
       "english_label": {
-        "bsonType": "string",
+        "bsonType": ["null", "string"],
         "description": "Primary English label (labels.en.value)"
       },
       "english_description": {
-        "bsonType": "string",
-        "description": "English description (descriptions.en.value)"
+         "bsonType": ["null", "string"],
+         "description": "English description (descriptions.en.value)"
       },
       "aliases": {
          "bsonType": "object",
@@ -48,7 +46,7 @@
         "description": "Most specific/relevant class QID after semantic correction (null if not determined)"
       },
       "coordinates": {
-        "bsonType": "object",
+        "bsonType": ["null", "object"],
         "required": ["type", "coordinates"],
         "description": "GeoJSON Point representation of P625",
         "properties": {
@@ -69,7 +67,7 @@
         }
       },
       "country_membership": {
-          "bsonType": "array",
+          "bsonType": ["null", "array"],
           "description": "Historical country (P17) memberships with dates (qualifiers P580/P582)",
           "items": {
               "bsonType": "object",
@@ -95,13 +93,13 @@
           }
       },
       "population": {
-           "bsonType": "array",
+           "bsonType": ["array", "null"],
            "description": "Population figures (P1082) with point-in-time qualifier (P585)",
            "items": {
                "bsonType": "object",
-               "required": ["value"], # Making point_in_time optional at schema level
+               "required": ["value"], 
                "properties": {
-                  "value": { "bsonType": "long" },
+                  "value": { "bsonType": ["int", "long"] },
                   "point_in_time": { "bsonType": ["date", "string", "null"], "description": "ISO date or year string if date parsing fails/missing" }
                }
            }
@@ -113,12 +111,12 @@
       "dates": {
          "bsonType": "object",
          "properties": {
-            "inception_year": {"bsonType": ["int", "null"]},
-            "dissolved_year": {"bsonType": ["int", "null"]}
+            "inception_year": {"bsonType": ["int", "long", "null"]},
+            "dissolved_year": {"bsonType": ["int", "long", "null"]}
          }
       },
       "wiki_links": {
-          "bsonType": "object",
+          "bsonType": ["null", "object"],
           "description": "Data derived from Wikipedia processing (conditional)",
           "properties": {
               "normalized_enwiki_title": {"bsonType": "string", "description": "Canonical normalized title of the enwiki sitelink page"},
@@ -142,7 +140,7 @@
           "description": "Flag indicating if this entity was processed by the specific 'ontology flaw' correction logic defined for this pipeline."
       },
       "embedding_vector": {
-          "bsonType": ["array", "binData", "null"], # Allow list of floats or binary
+          "bsonType": ["array", "binData", "null"], 
           "description": "Stored embedding vector (if storage_method is 'mongo_field')"
       },
       "last_updated": {

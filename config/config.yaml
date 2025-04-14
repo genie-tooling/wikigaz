@@ -4,7 +4,7 @@
 # Use environment variables (e.g., ${MONGO_URI}) for sensitive data.
 
 logging:
-  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "WARNING"# "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
   format: "json" # or "text"
   log_file_path: "logs/pipeline.log" # Relative path (will be absolutized by config loader)
   max_bytes: 10485760 # 10MB
@@ -36,8 +36,8 @@ wikidata_ingestion:
   dump_filename: ${WIKIDATA_DUMP_FILENAME:-latest-all.json.bz2} # Default if env var not set
   batch_size: ${config.mongodb.batch_size} # Reference global batch size
   # Filter criteria
-  require_enwiki_sitelink: true
-  require_coordinates: true
+  require_enwiki_sitelink: false
+  require_coordinates: false
   # List of core Wikidata Property IDs (PIDs) to extract (DA to finalize)
   # NOTE: Some PIDs (like P131, P17, P1082) require special handling for hierarchy/qualifiers.
   properties_to_extract:

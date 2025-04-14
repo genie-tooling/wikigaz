@@ -50,34 +50,32 @@
     {
       "name": "Apply Semantic Corrections",
       "script": "scripts/apply_semantic_corrections.py",
-      "enabled": true, # Enabled by default, check config flags inside script
+      "enabled": true, 
       "depends_on": ["Ingest Wikidata"],
        "parameters": {
          "class_strategy": "${config.semantic_correction.class_assignment_strategy}"
-         # Rules file path is read from global config inside the script
        }
     },
     {
       "name": "Fix Ontology Issues",
       "script": "scripts/fix_ontology_mongo.py",
-      "enabled": "${config.wikidata_ingestion.apply_ontology_fix_on_ingest == false}", # Only run if not done during ingest
-      "depends_on": ["Apply Semantic Corrections"] # Ensure corrections applied first if both enabled
+      "enabled": "${config.wikidata_ingestion.apply_ontology_fix_on_ingest == false}", 
+      "depends_on": ["Apply Semantic Corrections"] 
     },
     {
       "name": "Generate Embeddings",
       "script": "scripts/generate_embeddings.py",
       "enabled": "${config.embeddings.enabled}",
-      "depends_on": ["Fix Ontology Issues", "Enrich MongoDB with Wiki"], # Depends on final clean data state
+      "depends_on": ["Fix Ontology Issues", "Enrich MongoDB with Wiki"], 
       "parameters": {
           "storage_method": "${config.embeddings.storage_method}"
-          # Other params like model name read from global config inside script
       }
     },
     {
       "name": "Run Integration Tests",
-      "command": ["poetry", "run", "pytest", "tests/integration"], # Use list format for command
-      "enabled": true, # Usually enabled in dev/CI
-      "depends_on": ["Generate Embeddings"] # Test final state after all processing
+      "command": ["poetry", "run", "pytest", "tests/integration"], 
+      "enabled": true, 
+      "depends_on": ["Generate Embeddings"] 
     }
   ]
 }
